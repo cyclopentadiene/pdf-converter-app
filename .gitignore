@@ -1,0 +1,22 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+*.egg-info
+wheels/
+
+# Build artifacts
+build/
+dist/
+
+# Virtual environments
+.venv
+
+# OS metadata
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo

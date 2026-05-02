@@ -1,0 +1,17 @@
+[project]
+name = "pdf-converter-app"
+version = "0.1.0"
+description = "A simple desktop app to convert PDF files to Markdown, extracting text, tables, and images with page boundaries preserved."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+dependencies = [
+    "pymupdf4llm>=1.27.2.2",
+]
+
+[project.optional-dependencies]
+build = [
+    "pyinstaller>=6.19.0",
+    "onnxruntime>=1.24.3",
+    "setuptools<70",
+]
