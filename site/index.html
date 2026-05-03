@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="A lightweight Python desktop app that converts PDFs to clean Markdown. One-click conversion with image extraction, table support, and page-preserving output.">
+  <meta name="theme-color" content="#1a1a1e">
+  <title>PDF to Markdown Converter</title>
+  <style>
+    /* ===== DESIGN TOKENS ===== */
+    :root {
+      /* Palette — warm amber on deep charcoal */
+      --color-bg:           #131316;
+      --color-bg-elevated:  #1a1a1e;
+      --color-bg-card:      #1f1f24;
+      --color-bg-code:      #16161a;
+      --color-surface:      #252529;
+      --color-border:       #2e2e34;
+      --color-border-subtle:#23232a;
+
+      --color-text:         #e8e6e1;
+      --color-text-muted:   #9e9c97;
+      --color-text-faint:   #6b6964;
+
+      --color-accent:       #e8a94a;
+      --color-accent-dim:   #c48a2e;
+      --color-accent-glow:  rgba(232, 169, 74, 0.12);
+
+      /* Typography — Libre Baskerville (editorial serif) + Source Code Pro */
+      --font-display: 'Libre Baskerville', 'Georgia', 'Times New Roman', serif;
+      --font-body:    'DM Sans', 'Helvetica Neue', 'Segoe UI', sans-serif;
+      --font-mono:    'Source Code Pro', 'SF Mono', 'Fira Code', 'Consolas', monospace;
+
+      /* Scale — 4px base */
+      --space-1:  4px;
+      --space-2:  8px;
+      --space-3:  12px;
+      --space-4:  16px;
+      --space-5:  20px;
+      --space-6:  24px;
+      --space-8:  32px;
+      --space-10: 40px;
+      --space-12: 48px;
+      --space-16: 64px;
+      --space-20: 80px;
+      --space-24: 96px;
+
+      /* Type scale */
+      --text-xs:   0.75rem;
+      --text-sm:   0.875rem;
+      --text-base: 1rem;
+      --text-lg:   1.125rem;
+      --text-xl:   1.25rem;
+      --text-2xl:  1.5rem;
+      --text-3xl:  1.875rem;
+      --text-4xl:  2.25rem;
+      --text-5xl:  3rem;
+      --text-6xl:  3.75rem;
+
+      /* Misc */
+      --radius-sm:  6px;
+      --radius-md:  10px;
+      --radius-lg:  16px;
+      --shadow-card: 0 1px 3px rgba(0,0,0,0.3), 0 0 0 1px var(--color-border-subtle);
+      --shadow-elevated: 0 8px 32px rgba(0,0,0,0.4), 0 0 0 1px var(--color-border);
+      --transition-fast: 0.15s ease;
+      --transition-base: 0.25s ease;
+      --max-width: 1080px;
+    }
+
+    /* ===== RESET ===== */
+    *, *::before, *::after {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    /* ===== BASE ===== */
+    html {
+      scroll-behavior: smooth;
+      -webkit-text-size-adjust: 100%;
+    }
+
+    body {
+      font-family: var(--font-body);
+      font-size: var(--text-base);
+      line-height: 1.65;
+      color: var(--color-text);
+      background-color: var(--color-bg);
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    /* ===== TYPOGRAPHY ===== */
+    h1, h2, h3 {
+      font-family: var(--font-display);
+      font-weight: 700;
+      line-height: 1.2;
+      letter-spacing: -0.01em;
+    }
+
+    a {
+      color: var(--color-accent);
+      text-decoration: none;
+      transition: color var(--transition-fast);
+    }
+
+    a:hover {
+      color: var(--color-text);
+    }
+
+    code {
+      font-family: var(--font-mono);
+      font-size: 0.9em;
+    }
+
+    /* ===== LAYOUT ===== */
+    .container {
+      width: 100%;
+      max-width: var(--max-width);
+      margin-left: auto;
+      margin-right: auto;
+      padding-left: var(--space-6);
+      padding-right: var(--space-6);
+    }
+
+    /* ===== NAVIGATION ===== */
+    .site-nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(19, 19, 22, 0.85);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--color-border-subtle);
+    }
+
+    .site-nav .container {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 60px;
+    }
+
+    .nav-brand {
+      font-family: var(--font-display);
+      font-size: var(--text-sm);
+      color: var(--color-text);
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+
+    .nav-links {
+      display: flex;
+      gap: var(--space-6);
+      list-style: none;
+      align-items: center;
+    }
+
+    .nav-links a {
+      font-size: var(--text-sm);
+      color: var(--color-text-muted);
+      transition: color var(--transition-fast);
+      font-weight: 500;
+    }
+
+    .nav-links a:hover {
+      color: var(--color-text);
+    }
+
+    /* ===== HERO ===== */
+    .hero {
+      padding: var(--space-24) 0 var(--space-20);
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero::before {
+      content: '';
+      position: absolute;
+      top: -120px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 600px;
+      height: 600px;
+      background: radial-gradient(circle, var(--color-accent-glow) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .hero-label {
+      display: inline-block;
+      font-size: var(--text-xs);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--color-accent);
+      background: var(--color-accent-glow);
+      border: 1px solid rgba(232, 169, 74, 0.2);
+      border-radius: 100px;
+      padding: var(--space-2) var(--space-4);
+      margin-bottom: var(--space-8);
+    }
+
+    .hero h1 {
+      font-size: var(--text-5xl);
+      margin-bottom: var(--space-6);
+      position: relative;
+    }
+
+    .hero-tagline {
+      font-size: var(--text-xl);
+      color: var(--color-text-muted);
+      max-width: 560px;
+      margin: 0 auto var(--space-10);
+      line-height: 1.5;
+    }
+
+    .hero-actions {
+      display: flex;
+      gap: var(--space-4);
+      justify-content: center;
+      flex-wrap: wrap;
+      position: relative;
+    }
+
+    /* ===== BUTTONS ===== */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-2);
+      font-family: var(--font-body);
+      font-size: var(--text-sm);
+      font-weight: 600;
+      padding: var(--space-3) var(--space-6);
+      border-radius: var(--radius-sm);
+      border: 1px solid transparent;
+      cursor: pointer;
+      transition: all var(--transition-fast);
+      text-decoration: none;
+      line-height: 1.4;
+    }
+
+    .btn-primary {
+      background: var(--color-accent);
+      color: var(--color-bg);
+      border-color: var(--color-accent);
+    }
+
+    .btn-primary:hover {
+      background: #f0b85e;
+      border-color: #f0b85e;
+      color: var(--color-bg);
+      box-shadow: 0 0 24px rgba(232, 169, 74, 0.25);
+    }
+
+    .btn-secondary {
+      background: transparent;
+      color: var(--color-text);
+      border-color: var(--color-border);
+    }
+
+    .btn-secondary:hover {
+      border-color: var(--color-text-muted);
+      background: var(--color-surface);
+    }
+
+    /* ===== SECTION ===== */
+    .section {
+      padding: var(--space-20) 0;
+    }
+
+    .section + .section {
+      border-top: 1px solid var(--color-border-subtle);
+    }
+
+    .section-header {
+      margin-bottom: var(--space-12);
+    }
+
+    .section-header h2 {
+      font-size: var(--text-3xl);
+      margin-bottom: var(--space-3);
+    }
+
+    .section-header p {
+      color: var(--color-text-muted);
+      font-size: var(--text-lg);
+      max-width: 540px;
+    }
+
+    /* ===== FEATURES GRID ===== */
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: var(--space-5);
+    }
+
+    .feature-card {
+      background: var(--color-bg-card);
+      border: 1px solid var(--color-border-subtle);
+      border-radius: var(--radius-md);
+      padding: var(--space-8);
+      transition: border-color var(--transition-base), box-shadow var(--transition-base);
+    }
+
+    .feature-card:hover {
+      border-color: var(--color-border);
+      box-shadow: var(--shadow-card);
+    }
+
+    .feature-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: var(--radius-sm);
+      background: var(--color-accent-glow);
+      border: 1px solid rgba(232, 169, 74, 0.15);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: var(--space-5);
+      color: var(--color-accent);
+    }
+
+    .feature-icon svg {
+      width: 20px;
+      height: 20px;
+    }
+
+    .feature-card h3 {
+      font-family: var(--font-body);
+      font-size: var(--text-base);
+      font-weight: 600;
+      margin-bottom: var(--space-2);
+    }
+
+    .feature-card p {
+      font-size: var(--text-sm);
+      color: var(--color-text-muted);
+      line-height: 1.6;
+    }
+
+    /* ===== CODE BLOCK ===== */
+    .code-block {
+      background: var(--color-bg-code);
+      border: 1px solid var(--color-border-subtle);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+    }
+
+    .code-header {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      padding: var(--space-3) var(--space-4);
+      background: var(--color-bg-card);
+      border-bottom: 1px solid var(--color-border-subtle);
+    }
+
+    .code-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--color-surface);
+    }
+
+    .code-dot:nth-child(1) { background: #ed6a5e; }
+    .code-dot:nth-child(2) { background: #f4bf4f; }
+    .code-dot:nth-child(3) { background: #61c554; }
+
+    .code-body {
+      padding: var(--space-6);
+      overflow-x: auto;
+    }
+
+    .code-body pre {
+      font-family: var(--font-mono);
+      font-size: var(--text-sm);
+      line-height: 1.8;
+      color: var(--color-text-muted);
+    }
+
+    .code-comment {
+      color: var(--color-text-faint);
+    }
+
+    .code-command {
+      color: var(--color-text);
+    }
+
+    .code-string {
+      color: var(--color-accent);
+    }
+
+    /* ===== INSTALLATION LAYOUT ===== */
+    .install-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--space-10);
+      align-items: start;
+    }
+
+    .install-steps {
+      list-style: none;
+      counter-reset: steps;
+    }
+
+    .install-steps li {
+      counter-increment: steps;
+      position: relative;
+      padding-left: var(--space-10);
+      padding-bottom: var(--space-8);
+    }
+
+    .install-steps li:last-child {
+      padding-bottom: 0;
+    }
+
+    .install-steps li::before {
+      content: counter(steps);
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: var(--color-accent-glow);
+      border: 1px solid rgba(232, 169, 74, 0.2);
+      color: var(--color-accent);
+      font-size: var(--text-xs);
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      line-height: 1;
+    }
+
+    .install-steps li h3 {
+      font-family: var(--font-body);
+      font-size: var(--text-base);
+      font-weight: 600;
+      margin-bottom: var(--space-1);
+    }
+
+    .install-steps li p {
+      font-size: var(--text-sm);
+      color: var(--color-text-muted);
+    }
+
+    /* ===== LICENSE SECTION ===== */
+    .license-card {
+      background: var(--color-bg-card);
+      border: 1px solid var(--color-border-subtle);
+      border-radius: var(--radius-md);
+      padding: var(--space-8);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-6);
+      flex-wrap: wrap;
+    }
+
+    .license-info h3 {
+      font-family: var(--font-body);
+      font-size: var(--text-lg);
+      font-weight: 600;
+      margin-bottom: var(--space-1);
+    }
+
+    .license-info p {
+      font-size: var(--text-sm);
+      color: var(--color-text-muted);
+    }
+
+    /* ===== FOOTER ===== */
+    .site-footer {
+      border-top: 1px solid var(--color-border-subtle);
+      padding: var(--space-10) 0;
+    }
+
+    .footer-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: var(--space-6);
+    }
+
+    .footer-left p {
+      font-size: var(--text-sm);
+      color: var(--color-text-faint);
+    }
+
+    .footer-left a {
+      color: var(--color-text-muted);
+    }
+
+    .footer-left a:hover {
+      color: var(--color-text);
+    }
+
+    .footer-links {
+      display: flex;
+      align-items: center;
+      gap: var(--space-6);
+    }
+
+    .footer-links a {
+      font-size: var(--text-sm);
+      color: var(--color-text-faint);
+      transition: color var(--transition-fast);
+    }
+
+    .footer-links a:hover {
+      color: var(--color-text);
+    }
+
+    .netlify-badge img {
+      height: 40px;
+      opacity: 0.7;
+      transition: opacity var(--transition-fast);
+    }
+
+    .netlify-badge:hover img {
+      opacity: 1;
+    }
+
+    /* ===== RESPONSIVE ===== */
+    @media (max-width: 768px) {
+      .hero {
+        padding: var(--space-16) 0 var(--space-12);
+      }
+
+      .hero h1 {
+        font-size: var(--text-3xl);
+      }
+
+      .hero-tagline {
+        font-size: var(--text-base);
+      }
+
+      .section {
+        padding: var(--space-12) 0;
+      }
+
+      .section-header h2 {
+        font-size: var(--text-2xl);
+      }
+
+      .features-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .install-grid {
+        grid-template-columns: 1fr;
+        gap: var(--space-8);
+      }
+
+      .license-card {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      .footer-inner {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      .nav-links {
+        gap: var(--space-4);
+      }
+
+      .nav-links a {
+        font-size: var(--text-xs);
+      }
+    }
+
+    @media (max-width: 480px) {
+      .container {
+        padding-left: var(--space-4);
+        padding-right: var(--space-4);
+      }
+
+      .hero h1 {
+        font-size: var(--text-2xl);
+      }
+
+      .hero-actions {
+        flex-direction: column;
+        align-items: center;
+      }
+
+      .btn {
+        width: 100%;
+        justify-content: center;
+      }
+
+      .feature-card {
+        padding: var(--space-6);
+      }
+    }
+
+    /* ===== ANIMATIONS ===== */
+    @media (prefers-reduced-motion: no-preference) {
+      .hero-label,
+      .hero h1,
+      .hero-tagline,
+      .hero-actions {
+        animation: fadeUp 0.6s ease both;
+      }
+
+      .hero h1       { animation-delay: 0.08s; }
+      .hero-tagline   { animation-delay: 0.16s; }
+      .hero-actions   { animation-delay: 0.24s; }
+
+      .feature-card {
+        animation: fadeUp 0.5s ease both;
+      }
+      .feature-card:nth-child(1) { animation-delay: 0.05s; }
+      .feature-card:nth-child(2) { animation-delay: 0.10s; }
+      .feature-card:nth-child(3) { animation-delay: 0.15s; }
+      .feature-card:nth-child(4) { animation-delay: 0.20s; }
+      .feature-card:nth-child(5) { animation-delay: 0.25s; }
+    }
+
+    @keyframes fadeUp {
+      from {
+        opacity: 0;
+        transform: translateY(16px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+  </style>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Libre+Baskerville:wght@400;700&family=Source+Code+Pro:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <!-- Navigation -->
+  <nav class="site-nav" aria-label="Main navigation">
+    <div class="container">
+      <a class="nav-brand" href="#">pdf2md</a>
+      <ul class="nav-links">
+        <li><a href="#features">Features</a></li>
+        <li><a href="#installation">Install</a></li>
+        <li><a href="#license">License</a></li>
+        <li><a href="https://github.com/cyclopentadiene/pdf-converter-app/blob/master/CODE_OF_CONDUCT.md">Code of Conduct</a></li>
+        <li><a href="https://github.com/cyclopentadiene/pdf-converter-app" class="btn btn-secondary">GitHub</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <main>
+
+    <!-- Hero -->
+    <section class="hero">
+      <div class="container">
+        <span class="hero-label">Open Source</span>
+        <h1>PDF to Markdown<br>Converter</h1>
+        <p class="hero-tagline">A lightweight Python desktop app that converts PDFs to clean, structured Markdown. No servers, no subscriptions, no fuss.</p>
+        <div class="hero-actions">
+          <a href="https://github.com/cyclopentadiene/pdf-converter-app" class="btn btn-primary">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+            View on GitHub
+          </a>
+          <a href="#installation" class="btn btn-secondary">Get Started</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- Features -->
+    <section class="section" id="features">
+      <div class="container">
+        <div class="section-header">
+          <h2>Features</h2>
+          <p>Everything you need to turn PDFs into usable Markdown, built into a native desktop app.</p>
+        </div>
+        <div class="features-grid">
+
+          <div class="feature-card">
+            <div class="feature-icon">
+              <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/></svg>
+            </div>
+            <h3>One-click conversion</h3>
+            <p>Select a PDF, choose where to save, done. No configuration, no command-line flags, no complexity.</p>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-icon">
+              <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M3 3.5A1.5 1.5 0 014.5 2h6.879a1.5 1.5 0 011.06.44l4.122 4.12A1.5 1.5 0 0117 7.622V16.5a1.5 1.5 0 01-1.5 1.5h-11A1.5 1.5 0 013 16.5v-13zm10.5 5.5a.75.75 0 00-1.5 0v2.25H9.75a.75.75 0 000 1.5H12v2.25a.75.75 0 001.5 0v-2.25h2.25a.75.75 0 000-1.5H13.5V9z"/></svg>
+            </div>
+            <h3>Page-preserving</h3>
+            <p>Each PDF page becomes a separate Markdown section, maintaining the logical structure of your document.</p>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-icon">
+              <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M1 5.25A2.25 2.25 0 013.25 3h13.5A2.25 2.25 0 0119 5.25v9.5A2.25 2.25 0 0116.75 17H3.25A2.25 2.25 0 011 14.75v-9.5zm1.5 5.81v3.69c0 .414.336.75.75.75h13.5a.75.75 0 00.75-.75v-3.69l-2.72 1.3a.75.75 0 01-.68.02L10 10.94l-4.1 1.7a.75.75 0 01-.68-.02L2.5 11.06zm0-1.4l2.89 1.38 4.09-1.7a.75.75 0 01.64.02l4.07 1.68L18 7.55V5.25a.75.75 0 00-.75-.75H3.25a.75.75 0 00-.75.75v4.66z" clip-rule="evenodd"/></svg>
+            </div>
+            <h3>Image extraction</h3>
+            <p>Embedded images are saved to a companion folder alongside your Markdown output, with references intact.</p>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-icon">
+              <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M.99 5.24A2.25 2.25 0 013.25 3h13.5A2.25 2.25 0 0119 5.25l.01 9.5A2.25 2.25 0 0116.76 17H3.26A2.25 2.25 0 011 14.75l-.01-9.51zm8.26 9.52v-3.5H5.5a.75.75 0 010-1.5h3.75v-3.5a.75.75 0 011.5 0v3.5h3.75a.75.75 0 010 1.5h-3.75v3.5a.75.75 0 01-1.5 0z" clip-rule="evenodd"/></svg>
+            </div>
+            <h3>Table support</h3>
+            <p>Tables in your PDF are detected and converted to proper Markdown table syntax, ready for any renderer.</p>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-icon">
+              <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M2 4.25A2.25 2.25 0 014.25 2h11.5A2.25 2.25 0 0118 4.25v8.5A2.25 2.25 0 0115.75 15h-3.105a3.501 3.501 0 001.1 1.677A.75.75 0 0113.26 18H6.74a.75.75 0 01-.484-1.323A3.501 3.501 0 007.355 15H4.25A2.25 2.25 0 012 12.75v-8.5zm1.5 0a.75.75 0 01.75-.75h11.5a.75.75 0 01.75.75v7.5a.75.75 0 01-.75.75H4.25a.75.75 0 01-.75-.75v-7.5z" clip-rule="evenodd"/></svg>
+            </div>
+            <h3>Native desktop GUI</h3>
+            <p>Runs as a standalone macOS app. No browser, no Electron, no runtime dependencies for end users.</p>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- Installation -->
+    <section class="section" id="installation">
+      <div class="container">
+        <div class="section-header">
+          <h2>Getting Started</h2>
+          <p>Up and running in under a minute with uv.</p>
+        </div>
+        <div class="install-grid">
+          <ol class="install-steps">
+            <li>
+              <h3>Install dependencies</h3>
+              <p>Use uv to synchronize the project environment and install all required packages.</p>
+            </li>
+            <li>
+              <h3>Run the app</h3>
+              <p>Launch the graphical interface with a single command. Select your PDF and choose an output location.</p>
+            </li>
+            <li>
+              <h3>Build for distribution (optional)</h3>
+              <p>Package as a standalone macOS application using PyInstaller. No Python install required on the target machine.</p>
+            </li>
+          </ol>
+          <div class="code-block">
+            <div class="code-header">
+              <span class="code-dot"></span>
+              <span class="code-dot"></span>
+              <span class="code-dot"></span>
+            </div>
+            <div class="code-body">
+              <pre><span class="code-comment"># Install dependencies</span>
+<span class="code-command">uv sync</span>
+
+<span class="code-comment"># Run the app</span>
+<span class="code-command">python pdf2md.py</span>
+
+<span class="code-comment"># Build standalone macOS app (optional)</span>
+<span class="code-command">uv sync --extra build</span>
+<span class="code-command">pyinstaller <span class="code-string">"PDF Converter.spec"</span></span></pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- License -->
+    <section class="section" id="license">
+      <div class="container">
+        <div class="section-header">
+          <h2>License</h2>
+        </div>
+        <div class="license-card">
+          <div class="license-info">
+            <h3>MIT License</h3>
+            <p>Free to use, modify, and distribute. See the full license for details.</p>
+          </div>
+          <a href="https://github.com/cyclopentadiene/pdf-converter-app/blob/master/LICENSE" class="btn btn-secondary">View LICENSE</a>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="site-footer">
+    <div class="container">
+      <div class="footer-inner">
+        <div class="footer-left">
+          <p>PDF to Markdown Converter &mdash; Built by <a href="https://github.com/cyclopentadiene">cyclopentadiene</a></p>
+        </div>
+        <div class="footer-links">
+          <a href="https://github.com/cyclopentadiene/pdf-converter-app">GitHub</a>
+          <a href="https://github.com/cyclopentadiene/pdf-converter-app/blob/master/CODE_OF_CONDUCT.md">Code of Conduct</a>
+          <a href="https://www.netlify.com" class="netlify-badge">
+            <img src="https://www.netlify.com/v3/img/components/netlify-color-accent.svg" alt="Deploys by Netlify" />
+          </a>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+</body>
+</html>
